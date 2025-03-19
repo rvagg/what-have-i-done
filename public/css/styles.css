@@ -1,0 +1,398 @@
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f8f9fa;
+  color: #333;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.navbar {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.navbar-brand {
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.card {
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  border: none;
+  margin-bottom: 24px;
+}
+
+.card-header {
+  border-top-left-radius: 8px !important;
+  border-top-right-radius: 8px !important;
+  font-weight: 600;
+}
+
+.btn {
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-weight: 500;
+}
+
+.btn-primary {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+}
+
+.btn-primary:hover {
+  background-color: #0b5ed7;
+  border-color: #0a58ca;
+}
+
+.btn-success {
+  background-color: #198754;
+  border-color: #198754;
+}
+
+.btn-success:hover {
+  background-color: #157347;
+  border-color: #146c43;
+}
+
+.alert {
+  border-radius: 4px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.form-control {
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+
+.form-text {
+  color: #6c757d;
+  margin-top: 5px;
+}
+
+footer {
+  margin-top: auto;
+}
+
+.footer {
+  background-color: #343a40;
+  color: #fff;
+  padding: 24px 0;
+  margin-top: 60px;
+}
+
+/* Activity report specific styles */
+.activity-report {
+  overflow-x: auto;
+  padding: 10px;
+}
+
+.activity-report h2 {
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  color: #333;
+  border-bottom: 2px solid #eee;
+  padding-bottom: 0.5rem;
+}
+
+.activity-report h3 {
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  color: #555;
+  padding-bottom: 0.5rem;
+}
+
+.activity-report table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.5rem;
+}
+
+.activity-report th, .activity-report td {
+  padding: 8px;
+  text-align: left;
+  border: 1px solid #ddd;
+}
+
+.activity-report th {
+  background-color: #f8f9fa;
+  font-weight: bold;
+}
+
+.activity-report tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.activity-report a {
+  color: #0d6efd;
+  text-decoration: none;
+}
+
+.activity-report a:hover {
+  text-decoration: underline;
+}
+
+/* Style the summary section from Claude */
+.summary {
+  margin-bottom: 20px;
+  padding: 15px;
+  border: 1px solid #ddd;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+}
+
+.summary h3 {
+  margin-top: 0;
+  color: #333;
+}
+
+.summary ul {
+  padding-left: 20px;
+}
+
+/* Progress steps styles */
+.progress-steps {
+  margin: 20px 0;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.step-icon {
+  margin-right: 15px;
+  font-size: 1.5rem;
+  color: #0d6efd;
+}
+
+.step-content {
+  font-size: 1rem;
+}
+
+.active-step {
+  font-weight: bold;
+}
+
+.completed-step {
+  color: #198754;
+}
+
+.completed-step .step-icon {
+  color: #198754;
+}
+
+/* Activity indicator */
+.pulse-animation {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.activity-steps {
+  margin-top: 25px;
+  list-style-type: none;
+  padding-left: 0;
+}
+
+.activity-step {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  background-color: #f8f9fa;
+  transition: background-color 0.3s ease;
+}
+
+.activity-step.active {
+  background-color: #e9ecef;
+  border-left: 3px solid #0d6efd;
+}
+
+.activity-step-icon {
+  margin-right: 15px;
+  color: #6c757d;
+}
+
+.activity-step.active .activity-step-icon {
+  color: #0d6efd;
+}
+
+/* Username chips for multi-user support */
+.username-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+.username-chip {
+  display: inline-flex;
+  align-items: center;
+  background-color: #e9ecef;
+  border-radius: 16px;
+  padding: 5px 12px;
+  font-size: 0.875rem;
+}
+
+.username-chip .remove-username {
+  background: none;
+  border: none;
+  color: #6c757d;
+  cursor: pointer;
+  font-size: 1rem;
+  margin-left: 5px;
+  padding: 0 0 0 5px;
+}
+
+.username-chip .remove-username:hover {
+  color: #dc3545;
+}
+
+/* Recent Usernames Styling */
+.recent-usernames {
+  max-width: 100%;
+  overflow-x: auto;
+  padding-bottom: 5px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.recent-username-btn {
+  white-space: nowrap;
+  font-size: 0.8rem;
+  padding: 3px 10px;
+  border-radius: 15px;
+  transition: all 0.2s ease;
+}
+
+.recent-username-btn:hover {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+@media (max-width: 768px) {
+  h1 {
+    font-size: 1.8rem;
+  }
+  
+  h2 {
+    font-size: 1.5rem;
+  }
+  
+  .card-body {
+    padding: 1rem;
+  }
+  
+  .step-icon {
+    font-size: 1.2rem;
+  }
+  
+  .step-content {
+    font-size: 0.9rem;
+  }
+}
+
+/* GitHub activity loading animation */
+.loading-animation {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 120px;
+  margin: 20px 0;
+}
+
+.github-logo-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.github-logo {
+  font-size: 60px;
+  color: #171515;
+  position: relative;
+  z-index: 2;
+}
+
+.activity-ripple {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background-color: rgba(13, 110, 253, 0.1);
+  animation: ripple 2s infinite ease-out;
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* Loading dots animation */
+.loading-dots {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  background-color: #0d6efd;
+  border-radius: 50%;
+  display: inline-block;
+  animation: dot-pulse 1.5s infinite ease-in-out;
+}
+
+.dot:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.dot:nth-child(2) {
+  animation-delay: 0.3s;
+}
+
+.dot:nth-child(3) {
+  animation-delay: 0.6s;
+}
+
+@keyframes dot-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 1;
+  }
+}
+
+/* Progress bar styles */
+.loading-progress {
+  max-width: 500px;
+  margin: 0 auto;
+}

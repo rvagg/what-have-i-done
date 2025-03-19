@@ -1,0 +1,141 @@
+<div class="row">
+  <div class="col-md-8 offset-md-2">
+    <!-- Form Container -->
+    <div id="form-container">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h2 class="mb-0"><i class="bi bi-graph-up me-2"></i>Generate Activity Report</h2>
+        </div>
+        <div class="card-body">
+          <form id="activity-form" action="/activity" method="POST">
+            <div class="mb-3">
+              <label for="username" class="form-label">GitHub Username(s)</label>
+              
+              <!-- Autocomplete input with datalist -->
+              <div class="input-group mb-2">
+                <input type="text" class="form-control" id="username" name="username" 
+                  value="<%= username %>" placeholder="e.g., octocat" list="username-suggestions"
+                  autocomplete="off">
+                <button class="btn btn-outline-secondary" type="button" id="addUsernameBtn">
+                  <i class="bi bi-plus"></i> Add
+                </button>
+              </div>
+              
+              <!-- Datalist for autocomplete suggestions -->
+              <datalist id="username-suggestions">
+                <% if (locals.cachedUsernames && cachedUsernames.length > 0) { %>
+                  <% cachedUsernames.forEach(name => { %>
+                    <option value="<%= name %>">
+                  <% }); %>
+                <% } %>
+              </datalist>
+              
+              <!-- Quick selection of cached usernames -->
+              <% if (locals.cachedUsernames && cachedUsernames.length > 0) { %>
+                <div class="mb-2 mt-2">
+                  <label class="form-label mb-1">Recent Usernames:</label>
+                  <div class="d-flex flex-wrap gap-1 recent-usernames">
+                    <% cachedUsernames.forEach(name => { %>
+                      <button type="button" class="btn btn-sm btn-outline-secondary recent-username-btn" 
+                        data-username="<%= name %>">
+                        @<%= name %>
+                      </button>
+                    <% }); %>
+                  </div>
+                </div>
+              <% } %>
+              
+              <!-- Selected usernames as chips -->
+              <div id="username-chips" class="username-chips mt-2">
+                <!-- Username chips will be added here -->
+              </div>
+              <input type="hidden" id="usernames" name="usernames" value="">
+              <div class="form-text">Enter one or more GitHub usernames to generate a report for. For multiple users, a group summary will be created.</div>
+            </div>
+            
+            <div class="mb-3">
+              <label for="startDate" class="form-label">Start Date</label>
+              <input type="date" class="form-control" id="startDate" name="startDate" 
+                value="<%= startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10) %>" required>
+              <div class="form-text">Select the date from which to start collecting activity.</div>
+            </div>
+            
+            <div class="mb-3 form-check">
+              <input type="checkbox" class="form-check-input" id="enrich" name="enrich" value="true" checked>
+              <label class="form-check-label" for="enrich">Include enriched data</label>
+              <div class="form-text">
+                This includes PR comments, file changes, review details, and commit messages. 
+                <span class="text-warning">Note: Fetching enriched data takes more time.</span>
+              </div>
+            </div>
+            
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-search me-2"></i>Generate Report
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Simple Loading Container (initially hidden) -->
+    <div id="progress-container" style="display: none;">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h2 class="mb-0"><i class="bi bi-hourglass-split me-2"></i>Generating Your Report</h2>
+        </div>
+        <div class="card-body text-center">
+          <div class="loading-animation mb-4">
+            <div class="github-logo-container">
+              <i class="bi bi-github github-logo"></i>
+              <div class="activity-ripple"></div>
+            </div>
+          </div>
+          
+          <h4 class="mb-4">Collecting GitHub Activity Data</h4>
+          
+          <div class="loading-dots mb-4">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
+          
+          <div class="alert alert-info mx-auto" style="max-width: 500px;">
+            <i class="bi bi-info-circle me-2"></i>
+            <span>This may take several minutes, especially with enriched data enabled. The page will automatically update when your report is ready.</span>
+          </div>
+          
+          <div class="loading-progress mt-4">
+            <div class="progress" style="height: 8px;">
+              <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="card mt-4">
+      <div class="card-header bg-info text-white">
+        <h4 class="mb-0"><i class="bi bi-question-circle me-2"></i>About Activity Reports</h4>
+      </div>
+      <div class="card-body">
+        <p>Activity reports provide a comprehensive overview of a GitHub user's contributions, including:</p>
+        <ul>
+          <li><strong>Pull Requests</strong> - PRs created and their status</li>
+          <li><strong>Issues</strong> - Issues opened and their status</li>
+          <li><strong>Reviews</strong> - Code reviews provided to other contributors</li>
+          <li><strong>Commits</strong> - Commits across all repositories</li>
+        </ul>
+        <p>With enriched data enabled, you'll also see:</p>
+        <ul>
+          <li>PR comments and reactions</li>
+          <li>Files changed in each PR</li>
+          <li>Detailed timeline of PR events</li>
+          <li>Repository details and descriptions</li>
+          <li>Commit messages and details</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>

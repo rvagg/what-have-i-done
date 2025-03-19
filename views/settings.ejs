@@ -1,0 +1,193 @@
+<div class="row">
+  <div class="col-md-8 offset-md-2">
+    <div class="card">
+      <div class="card-header bg-primary text-white">
+        <h2 class="mb-0"><i class="bi bi-gear me-2"></i>Application Settings</h2>
+      </div>
+      <div class="card-body">
+        <form action="/settings" method="POST">
+          <div class="mb-4">
+            <h4>API Credentials</h4>
+            <p class="text-muted">Configure your API credentials to use GitHub Activity Viewer.</p>
+            
+            <div class="mb-3">
+              <label for="githubToken" class="form-label">GitHub Personal Access Token</label>
+              <div class="input-group">
+                <input type="password" class="form-control" id="githubToken" name="githubToken" 
+                  value="<%= githubToken %>" placeholder="Enter GitHub token"
+                  autocomplete="off">
+                <button class="btn btn-outline-secondary" type="button" id="toggleGithubToken">
+                  <i class="bi bi-eye"></i>
+                </button>
+              </div>
+              <div class="form-text">
+                <a href="https://github.com/settings/tokens" target="_blank">
+                  Create a GitHub token <i class="bi bi-box-arrow-up-right"></i>
+                </a>
+                (No special permissions required, classic token is fine)
+              </div>
+            </div>
+            
+            <div class="mb-3">
+              <label for="anthropicKey" class="form-label">Anthropic API Key (Optional)</label>
+              <div class="input-group">
+                <input type="password" class="form-control" id="anthropicKey" name="anthropicKey" 
+                  value="<%= anthropicKey %>" placeholder="Enter Anthropic API key" 
+                  autocomplete="off">
+                <button class="btn btn-outline-secondary" type="button" id="toggleAnthropicKey">
+                  <i class="bi bi-eye"></i>
+                </button>
+              </div>
+              <div class="form-text">
+                Required for AI-powered summaries.
+                <a href="https://console.anthropic.com/account/keys" target="_blank">
+                  Get an Anthropic API key <i class="bi bi-box-arrow-up-right"></i>
+                </a>
+              </div>
+            </div>
+            
+            <div class="mb-3">
+              <label for="claudeModel" class="form-label">Claude Model</label>
+              <div class="d-flex gap-2 mb-2">
+                <select class="form-select" id="claudeModel" name="claudeModel">
+                  <% if (claudeModels && claudeModels.length > 0) { %>
+                    <% claudeModels.forEach(model => { %>
+                      <option value="<%= model.id %>" <%= claudeModel === model.id ? 'selected' : '' %>>
+                        <%= (model.display_name || model.id) + ' (' + model.id + ')' %>
+                      </option>
+                    <% }); %>
+                  <% } else { %>
+                    <option value="claude-3-5-sonnet-latest" selected>Claude 3.5 Sonnet (Latest)</option>
+                  <% } %>
+                </select>
+                <button type="button" id="refreshModelsBtn" class="btn btn-outline-secondary" title="Refresh Models List">
+                  <i class="bi bi-arrow-clockwise"></i>
+                </button>
+              </div>
+              <div class="form-text d-flex justify-content-between align-items-start">
+                <span>Select the Claude model to use for generating summaries. Defaults to Claude 3.5 Sonnet.</span>
+                <span id="models-status" class="ms-2"></span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mb-4">
+            <h5>Storage Location</h5>
+            <p class="text-muted">Your credentials will be stored in <code>~/.what-have-i-done/config.json</code></p>
+          </div>
+          
+          <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-save me-2"></i>Save Settings
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- contentFor('scripts') %>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Toggle GitHub token visibility
+    document.getElementById('toggleGithubToken').addEventListener('click', function() {
+      const input = document.getElementById('githubToken');
+      const icon = this.querySelector('i');
+      
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('bi-eye');
+        icon.classList.add('bi-eye-slash');
+      } else {
+        input.type = 'password';
+        icon.classList.remove('bi-eye-slash');
+        icon.classList.add('bi-eye');
+      }
+    });
+    
+    // Toggle Anthropic key visibility
+    document.getElementById('toggleAnthropicKey').addEventListener('click', function() {
+      const input = document.getElementById('anthropicKey');
+      const icon = this.querySelector('i');
+      
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('bi-eye');
+        icon.classList.add('bi-eye-slash');
+      } else {
+        input.type = 'password';
+        icon.classList.remove('bi-eye-slash');
+        icon.classList.add('bi-eye');
+      }
+    });
+    
+    // Refresh available Claude models
+    const refreshModelsBtn = document.getElementById('refreshModelsBtn');
+    const anthropicKeyInput = document.getElementById('anthropicKey');
+    const claudeModelSelect = document.getElementById('claudeModel');
+    const modelsStatus = document.getElementById('models-status');
+    
+    if (refreshModelsBtn && anthropicKeyInput && claudeModelSelect) {
+      refreshModelsBtn.addEventListener('click', async function() {
+        const apiKey = anthropicKeyInput.value.trim();
+        
+        if (!apiKey) {
+          modelsStatus.innerHTML = '<span class="text-danger">API key required to fetch models</span>';
+          return;
+        }
+        
+        // Show loading state
+        refreshModelsBtn.disabled = true;
+        refreshModelsBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+        modelsStatus.innerHTML = '<span class="text-info">Fetching models...</span>';
+        
+        try {
+          // Fetch models from API
+          const response = await fetch('/settings/fetch-models', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ anthropicKey: apiKey })
+          });
+          
+          const data = await response.json();
+          
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to fetch models');
+          }
+          
+          if (!data.models || data.models.length === 0) {
+            modelsStatus.innerHTML = '<span class="text-warning">No models found</span>';
+            return;
+          }
+          
+          // Remember current selection
+          const currentSelection = claudeModelSelect.value;
+          
+          // Clear and rebuild select options
+          claudeModelSelect.innerHTML = '';
+          
+          // Add models to select
+          data.models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.textContent = model.name || model.id;
+            option.selected = model.id === currentSelection;
+            claudeModelSelect.appendChild(option);
+          });
+          
+          modelsStatus.innerHTML = `<span class="text-success">Found ${data.models.length} models</span>`;
+        } catch (error) {
+          console.error('Error fetching models:', error);
+          modelsStatus.innerHTML = `<span class="text-danger">${error.message}</span>`;
+        } finally {
+          // Reset button state
+          refreshModelsBtn.disabled = false;
+          refreshModelsBtn.innerHTML = '<i class="bi bi-arrow-clockwise"></i>';
+        }
+      });
+    }
+  });
+</script>
