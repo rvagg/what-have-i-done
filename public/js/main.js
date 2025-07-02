@@ -30,8 +30,8 @@ document.addEventListener('DOMContentLoaded', function() {
       if (links.length > 0) {
         row.style.cursor = 'pointer';
         row.addEventListener('click', function(e) {
-          // Don't trigger if they clicked the actual link
-          if (e.target.tagName !== 'A') {
+          // Don't trigger if they clicked the actual link or if text is selected
+          if (e.target.tagName !== 'A' && window.getSelection().toString().length === 0) {
             links[0].click();
           }
         });
