@@ -7,6 +7,30 @@ import { updateSessionProgress } from '../lib/progress-tracker.js';
 
 const router = express.Router();
 
+// Filter activity data to exclude repos owned by specified orgs/users
+function filterExcludedOrgs(activity, excludeOrgs) {
+  if (!excludeOrgs || excludeOrgs.length === 0) return activity;
+
+  const excluded = new Set(excludeOrgs.map(o => o.toLowerCase()));
+  const isExcluded = (repo) => {
+    const owner = repo.nameWithOwner.split('/')[0].toLowerCase();
+    return excluded.has(owner);
+  };
+
+  return {
+    pullRequests: activity.pullRequests.filter(pr => !isExcluded(pr.repository)),
+    reviews: activity.reviews.filter(r => !isExcluded(r.repository)),
+    issues: activity.issues.filter(i => !isExcluded(i.repository)),
+    commitsByRepo: activity.commitsByRepo.filter(c => !isExcluded(c.repository)),
+  };
+}
+
+// Parse comma-separated org exclusion string into array
+function parseExcludeOrgs(excludeOrgsStr) {
+  if (!excludeOrgsStr || !excludeOrgsStr.trim()) return [];
+  return excludeOrgsStr.split(',').map(s => s.trim()).filter(Boolean);
+}
+
 // Display form to generate activity report
 router.get('/', async (req, res) => {
   if (!res.locals.hasGithubToken) {
@@ -21,7 +45,8 @@ router.get('/', async (req, res) => {
     title: 'Generate Activity Report',
     username: req.query.username || '',
     startDate: req.query.startDate || '',
-    cachedUsernames: cachedUsernames
+    cachedUsernames: cachedUsernames,
+    excludedOrgs: req.appConfig?.excludedOrgs || []
   });
 });
 
@@ -200,8 +225,9 @@ router.post('/', async (req, res) => {
       `${req.appConfig.githubToken.substring(0, 5)}...${req.appConfig.githubToken.substring(req.appConfig.githubToken.length - 4)}` : 
       'No token');
 
-    const { username, usernames, startDate, enrich, processToken } = req.body;
-    
+    const { username, usernames, startDate, enrich, processToken, excludeOrgs } = req.body;
+    const excludeOrgsList = parseExcludeOrgs(excludeOrgs);
+
     // Process usernames (both from direct field and the hidden comma-separated field)
     let usernameList = [];
     
@@ -259,19 +285,26 @@ router.post('/', async (req, res) => {
         console.log(`Enrichment complete for ${currentUsername}`);
       }
       
+      // Apply org/user exclusion filter
+      const filteredActivity = filterExcludedOrgs(activity, excludeOrgsList);
+
+      if (excludeOrgsList.length > 0) {
+        console.log(`Filtered out repos from: ${excludeOrgsList.join(', ')} for ${currentUsername}`);
+      }
+
       // Generate reports for this user
-      const htmlReport = generateActivityReport(activity, since, currentUsername, 'html', enrich === 'true');
-      const plainTextReport = generateActivityReport(activity, since, currentUsername, 'plain', enrich === 'true');
-      
+      const htmlReport = generateActivityReport(filteredActivity, since, currentUsername, 'html', enrich === 'true');
+      const plainTextReport = generateActivityReport(filteredActivity, since, currentUsername, 'plain', enrich === 'true');
+
       // Store the user data
       usersData.push({
         username: currentUsername,
-        activity,
+        activity: filteredActivity,
         htmlReport,
         plainTextReport
       });
     }
-    
+
     // Generate consolidated report for multi-user case
     let consolidatedHtmlReport = '';
     let consolidatedPlainText = '';
@@ -351,6 +384,7 @@ router.post('/', async (req, res) => {
         username: userData.username,
         activity: userData.activity,
       })),
+      excludedOrgs: excludeOrgsList,
       generatedAt: new Date().toISOString(),
       hasSummary: !!summary
     };

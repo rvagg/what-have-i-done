@@ -72,6 +72,22 @@
           </div>
           
           <div class="mb-4">
+            <h4>Report Filtering</h4>
+            <p class="text-muted">Configure default filters applied when generating reports.</p>
+
+            <div class="mb-3">
+              <label for="excludedOrgs" class="form-label">Excluded Organizations / Users</label>
+              <input type="text" class="form-control" id="excludedOrgs" name="excludedOrgs"
+                value="<%= excludedOrgs.join(', ') %>" placeholder="e.g., my-org, personal-account"
+                autocomplete="off">
+              <div class="form-text">
+                Comma-separated list of GitHub organizations or users whose repositories will be excluded from reports.
+                This can be overridden per-report.
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-4">
             <h5>Storage Location</h5>
             <p class="text-muted">Your credentials will be stored in <code>~/.what-have-i-done/config.json</code></p>
           </div>

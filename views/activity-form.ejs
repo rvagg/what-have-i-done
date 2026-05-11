@@ -69,6 +69,18 @@
               </div>
             </div>
             
+            <div class="mb-3">
+              <label for="excludeOrgs" class="form-label">Exclude Organizations / Users</label>
+              <input type="text" class="form-control" id="excludeOrgs" name="excludeOrgs"
+                value="<%= (locals.excludedOrgs || []).join(', ') %>"
+                placeholder="e.g., my-org, personal-account"
+                autocomplete="off">
+              <div class="form-text">
+                Comma-separated list of GitHub orgs/users whose repos will be excluded.
+                Pre-filled from <a href="/settings">settings</a>.
+              </div>
+            </div>
+
             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
               <button type="submit" class="btn btn-primary">
                 <i class="bi bi-search me-2"></i>Generate Report
