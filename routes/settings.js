@@ -106,6 +106,7 @@ router.get('/', async (req, res) => {
     githubToken: config.githubToken || '',
     anthropicKey: config.anthropicKey || '',
     claudeModel: config.claudeModel || 'claude-3-5-sonnet-latest',
+    excludedOrgs: config.excludedOrgs || [],
     storageLocation: config.storageLocation || 'local', // local or home
     claudeModels: availableModels || []
   });
@@ -145,12 +146,18 @@ router.post('/fetch-models', async (req, res) => {
 // Save settings
 router.post('/', async (req, res) => {
   try {
-    const { githubToken, anthropicKey, claudeModel } = req.body;
-    
+    const { githubToken, anthropicKey, claudeModel, excludedOrgs } = req.body;
+
+    // Parse excluded orgs: comma-separated string to array, trimmed and lowercased
+    const parsedExcludedOrgs = excludedOrgs
+      ? excludedOrgs.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+
     const config = {
       githubToken: githubToken.trim(),
       anthropicKey: anthropicKey.trim(),
-      claudeModel: claudeModel || 'claude-3-5-sonnet-latest'
+      claudeModel: claudeModel || 'claude-3-5-sonnet-latest',
+      excludedOrgs: parsedExcludedOrgs
     };
 
     // Check if GitHub token is valid by making a test request
