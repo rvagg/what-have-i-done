@@ -23,6 +23,7 @@ function filterByOrgs(activity, includeOrgs, excludeOrgs) {
   };
 
   return {
+    ...activity,
     pullRequests: activity.pullRequests.filter(pr => isKept(pr.repository)),
     reviews: activity.reviews.filter(r => isKept(r.repository)),
     issues: activity.issues.filter(i => isKept(i.repository)),
@@ -30,10 +31,10 @@ function filterByOrgs(activity, includeOrgs, excludeOrgs) {
   };
 }
 
-// Parse comma-separated org exclusion string into array
-function parseExcludeOrgs(excludeOrgsStr) {
-  if (!excludeOrgsStr || !excludeOrgsStr.trim()) return [];
-  return excludeOrgsStr.split(',').map(s => s.trim()).filter(Boolean);
+// Parse comma-separated string into array
+function parseCommaSeparatedList(str) {
+  if (!str || !str.trim()) return [];
+  return str.split(',').map(s => s.trim()).filter(Boolean);
 }
 
 // Parse comma-separated additional repos string into array of "owner/repo" strings
@@ -59,6 +60,8 @@ router.get('/', async (req, res) => {
     title: 'Generate Activity Report',
     username: req.query.username || '',
     startDate: req.query.startDate || '',
+    includeOrgs: req.query.includeOrgs || '',
+    additionalRepos: req.query.additionalRepos || '',
     cachedUsernames: cachedUsernames,
     excludedOrgs: req.appConfig?.excludedOrgs || [],
     hasRepoScope
@@ -78,8 +81,8 @@ router.post('/', async (req, res) => {
       'No token');
 
     const { username, usernames, startDate, endDate, enrich, processToken, includeOrgs, excludeOrgs, additionalRepos } = req.body;
-    const includeOrgsList = parseExcludeOrgs(includeOrgs); // same parsing logic
-    const excludeOrgsList = parseExcludeOrgs(excludeOrgs);
+    const includeOrgsList = parseCommaSeparatedList(includeOrgs);
+    const excludeOrgsList = parseCommaSeparatedList(excludeOrgs);
     const additionalReposList = parseAdditionalRepos(additionalRepos);
 
     // Process usernames (both from direct field and the hidden comma-separated field)

@@ -79,7 +79,7 @@
             <div class="mb-3">
               <label for="includeOrgs" class="form-label">Include Only Organizations / Users</label>
               <input type="text" class="form-control" id="includeOrgs" name="includeOrgs"
-                value=""
+                value="<%= locals.includeOrgs || '' %>"
                 placeholder="e.g., FilOzone, ipfs"
                 autocomplete="off">
               <div class="form-text">
@@ -103,7 +103,7 @@
             <div class="mb-3">
               <label for="additionalRepos" class="form-label">Additional Private Repos</label>
               <input type="text" class="form-control" id="additionalRepos" name="additionalRepos"
-                value="" placeholder="e.g., FilOzone/infra, org/other-repo"
+                value="<%= locals.additionalRepos || '' %>" placeholder="e.g., FilOzone/infra, org/other-repo"
                 autocomplete="off">
               <div class="form-text">
                 Comma-separated list of private repos to query directly for the user's PRs, issues, and commits.
