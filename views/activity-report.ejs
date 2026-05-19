@@ -34,8 +34,8 @@
     </div>
     <p class="text-muted">
       <% const dateRange = locals.endDate
-           ? `${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`
-           : `since ${new Date(startDate).toLocaleDateString()}`; %>
+           ? `${new Date(startDate).toISOString().slice(0,10)} to ${new Date(endDate).toISOString().slice(0,10)}`
+           : `since ${new Date(startDate).toISOString().slice(0,10)}`; %>
       <% if (isMultiUser) { %>
         Showing activity for <%= usernames.join(', ') %> <%= dateRange %>
       <% } else { %>

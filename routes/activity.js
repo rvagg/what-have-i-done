@@ -1,5 +1,5 @@
 import express from 'express';
-import { fetchUserActivity, generateActivityReport } from '../lib/github-activity.js';
+import { fetchUserActivity, generateActivityReport, fetchAdditionalReposActivity, mergeActivity } from '../lib/github-activity.js';
 import { generateSummary } from '../lib/anthropic.js';
 import { saveReport } from '../lib/reports/manager.js';
 import { addUsernamesToCache, getCachedUsernames } from '../lib/usernames-cache.js';
@@ -7,21 +7,27 @@ import { updateSessionProgress } from '../lib/progress-tracker.js';
 
 const router = express.Router();
 
-// Filter activity data to exclude repos owned by specified orgs/users
-function filterExcludedOrgs(activity, excludeOrgs) {
-  if (!excludeOrgs || excludeOrgs.length === 0) return activity;
+// Filter activity data by org inclusion and/or exclusion lists
+function filterByOrgs(activity, includeOrgs, excludeOrgs) {
+  const hasInclude = includeOrgs && includeOrgs.length > 0;
+  const hasExclude = excludeOrgs && excludeOrgs.length > 0;
+  if (!hasInclude && !hasExclude) return activity;
 
-  const excluded = new Set(excludeOrgs.map(o => o.toLowerCase()));
-  const isExcluded = (repo) => {
+  const included = hasInclude ? new Set(includeOrgs.map(o => o.toLowerCase())) : null;
+  const excluded = hasExclude ? new Set(excludeOrgs.map(o => o.toLowerCase())) : null;
+
+  const isKept = (repo) => {
     const owner = repo.nameWithOwner.split('/')[0].toLowerCase();
-    return excluded.has(owner);
+    if (included && !included.has(owner)) return false;
+    if (excluded && excluded.has(owner)) return false;
+    return true;
   };
 
   return {
-    pullRequests: activity.pullRequests.filter(pr => !isExcluded(pr.repository)),
-    reviews: activity.reviews.filter(r => !isExcluded(r.repository)),
-    issues: activity.issues.filter(i => !isExcluded(i.repository)),
-    commitsByRepo: activity.commitsByRepo.filter(c => !isExcluded(c.repository)),
+    pullRequests: activity.pullRequests.filter(pr => isKept(pr.repository)),
+    reviews: activity.reviews.filter(r => isKept(r.repository)),
+    issues: activity.issues.filter(i => isKept(i.repository)),
+    commitsByRepo: activity.commitsByRepo.filter(c => isKept(c.repository)),
   };
 }
 
@@ -29,6 +35,12 @@ function filterExcludedOrgs(activity, excludeOrgs) {
 function parseExcludeOrgs(excludeOrgsStr) {
   if (!excludeOrgsStr || !excludeOrgsStr.trim()) return [];
   return excludeOrgsStr.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+// Parse comma-separated additional repos string into array of "owner/repo" strings
+function parseAdditionalRepos(str) {
+  if (!str || !str.trim()) return [];
+  return str.split(',').map(s => s.trim()).filter(s => /^[^/]+\/[^/]+$/.test(s));
 }
 
 // Display form to generate activity report
@@ -229,8 +241,10 @@ router.post('/', async (req, res) => {
       `${req.appConfig.githubToken.substring(0, 5)}...${req.appConfig.githubToken.substring(req.appConfig.githubToken.length - 4)}` : 
       'No token');
 
-    const { username, usernames, startDate, endDate, enrich, processToken, excludeOrgs } = req.body;
+    const { username, usernames, startDate, endDate, enrich, processToken, includeOrgs, excludeOrgs, additionalRepos } = req.body;
+    const includeOrgsList = parseExcludeOrgs(includeOrgs); // same parsing logic
     const excludeOrgsList = parseExcludeOrgs(excludeOrgs);
+    const additionalReposList = parseAdditionalRepos(additionalRepos);
 
     // Process usernames (both from direct field and the hidden comma-separated field)
     let usernameList = [];
@@ -290,21 +304,34 @@ router.post('/', async (req, res) => {
       const activity = await fetchUserActivity(currentUsername, since, req.appConfig.githubToken, until);
       console.log(`Basic activity data fetched for ${currentUsername}`);
 
-      // Generate enriched report if requested
+      // Fetch and merge activity from additional private repos
+      if (additionalReposList.length > 0) {
+        console.log(`Fetching additional repos for ${currentUsername}: ${additionalReposList.join(', ')}`);
+        const additionalActivity = await fetchAdditionalReposActivity(
+          additionalReposList, currentUsername, since, req.appConfig.githubToken, until
+        );
+        mergeActivity(activity, additionalActivity);
+        console.log(`Merged additional repo activity for ${currentUsername}`);
+      }
+
+      // Apply org/user filter BEFORE enrichment to avoid wasted API calls
+      const filteredActivity = filterByOrgs(activity, includeOrgsList, excludeOrgsList);
+
+      if (includeOrgsList.length > 0) {
+        console.log(`Filtered to only orgs: ${includeOrgsList.join(', ')} for ${currentUsername}`);
+      }
+      if (excludeOrgsList.length > 0) {
+        console.log(`Filtered out repos from: ${excludeOrgsList.join(', ')} for ${currentUsername}`);
+      }
+
+      // Generate enriched report if requested (runs on filtered data only)
       if (enrich === 'true') {
         console.log(`Starting enrichment process for ${currentUsername}`);
         await Promise.all([
-          fetchUserActivity.enrichCommitContributions(activity, since, currentUsername, req.appConfig.githubToken, until),
-          fetchUserActivity.enrichPullRequestData(activity, since, currentUsername, req.appConfig.githubToken, until)
+          fetchUserActivity.enrichCommitContributions(filteredActivity, since, currentUsername, req.appConfig.githubToken, until),
+          fetchUserActivity.enrichPullRequestData(filteredActivity, since, currentUsername, req.appConfig.githubToken, until)
         ]);
         console.log(`Enrichment complete for ${currentUsername}`);
-      }
-      
-      // Apply org/user exclusion filter
-      const filteredActivity = filterExcludedOrgs(activity, excludeOrgsList);
-
-      if (excludeOrgsList.length > 0) {
-        console.log(`Filtered out repos from: ${excludeOrgsList.join(', ')} for ${currentUsername}`);
       }
 
       // Generate reports for this user
@@ -404,7 +431,9 @@ router.post('/', async (req, res) => {
         username: userData.username,
         activity: userData.activity,
       })),
+      includedOrgs: includeOrgsList,
       excludedOrgs: excludeOrgsList,
+      additionalRepos: additionalReposList,
       generatedAt: new Date().toISOString(),
       hasSummary: !!summary
     };

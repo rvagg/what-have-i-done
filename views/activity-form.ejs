@@ -77,6 +77,18 @@
             </div>
             
             <div class="mb-3">
+              <label for="includeOrgs" class="form-label">Include Only Organizations / Users</label>
+              <input type="text" class="form-control" id="includeOrgs" name="includeOrgs"
+                value=""
+                placeholder="e.g., FilOzone, ipfs"
+                autocomplete="off">
+              <div class="form-text">
+                Comma-separated list. When set, only repos from these orgs/users will be included.
+                Leave blank to include all.
+              </div>
+            </div>
+
+            <div class="mb-3">
               <label for="excludeOrgs" class="form-label">Exclude Organizations / Users</label>
               <input type="text" class="form-control" id="excludeOrgs" name="excludeOrgs"
                 value="<%= (locals.excludedOrgs || []).join(', ') %>"
@@ -85,6 +97,17 @@
               <div class="form-text">
                 Comma-separated list of GitHub orgs/users whose repos will be excluded.
                 Pre-filled from <a href="/settings">settings</a>.
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="additionalRepos" class="form-label">Additional Private Repos</label>
+              <input type="text" class="form-control" id="additionalRepos" name="additionalRepos"
+                value="" placeholder="e.g., FilOzone/infra, org/other-repo"
+                autocomplete="off">
+              <div class="form-text">
+                Comma-separated list of private repos to query directly for the user's PRs, issues, and commits.
+                Use <code>owner/repo</code> format. Requires a token with <code>repo</code> scope.
               </div>
             </div>
 

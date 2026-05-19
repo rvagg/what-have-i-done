@@ -79,7 +79,7 @@ GitHub's `contributionsCollection` GraphQL API only includes private repository 
 
 **Workarounds:**
 - Have each user generate their own reports using their own token
-- A future enhancement could supplement user-contribution queries with direct repo-based queries (e.g., searching a repo's PRs and commits by author), which would work across users as long as the token has access to the repo
+- Use the "Additional Private Repos" field on the report form to query specific repos directly for the user's PRs, issues, and commits (requires a token with `repo` scope and access to the repo)
 
 ## License
 
