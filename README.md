@@ -49,7 +49,7 @@ The application requires a GitHub personal access token to function. An Anthropi
 ### GitHub Token
 
 1. Create a personal access token at https://github.com/settings/tokens
-2. No special permissions are required, a classic token with default scopes is sufficient
+2. A classic token is recommended. Enable the `repo` scope to include private repository activity.
 3. Enter the token in the application's Settings page
 
 ### Anthropic API Key (Optional)
@@ -70,6 +70,16 @@ The application requires a GitHub personal access token to function. An Anthropi
 Your configuration is stored in your home directory at:
 
 `~/.what-have-i-done/config.json`
+
+## Known Limitations
+
+### Private repository activity for other users
+
+GitHub's `contributionsCollection` GraphQL API only includes private repository contributions when querying the **authenticated user's own** activity. When generating a report for a different user (e.g., a teammate), their private repo contributions will not appear — even if your token has `repo` scope and access to those repositories.
+
+**Workarounds:**
+- Have each user generate their own reports using their own token
+- A future enhancement could supplement user-contribution queries with direct repo-based queries (e.g., searching a repo's PRs and commits by author), which would work across users as long as the token has access to the repo
 
 ## License
 

@@ -33,10 +33,13 @@
       </div>
     </div>
     <p class="text-muted">
+      <% const dateRange = locals.endDate
+           ? `${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`
+           : `since ${new Date(startDate).toLocaleDateString()}`; %>
       <% if (isMultiUser) { %>
-        Showing activity for <%= usernames.join(', ') %> since <%= new Date(startDate).toLocaleDateString() %>
+        Showing activity for <%= usernames.join(', ') %> <%= dateRange %>
       <% } else { %>
-        Showing activity since <%= new Date(startDate).toLocaleDateString() %>
+        Showing activity <%= dateRange %>
       <% } %>
       <% if (locals.isHistoricalReport) { %>
         <span class="badge bg-secondary ms-2">Saved Report</span>
@@ -62,6 +65,18 @@
         </div>
         <div class="card-body">
           <%- summary %>
+          <% if (locals.summaryCompressionInfo) { %>
+            <div class="alert alert-info mt-3 mb-0">
+              <i class="bi bi-info-circle me-2"></i>
+              <strong>Note:</strong> The following data was excluded from the AI summary to fit within the model's context window:
+              <ul class="mb-0 mt-1">
+                <% summaryCompressionInfo.dropped.forEach(item => { %>
+                  <li><%= item %></li>
+                <% }); %>
+              </ul>
+              <small class="text-muted">The full data is still available in the detailed activity report below.</small>
+            </div>
+          <% } %>
         </div>
       </div>
     </div>

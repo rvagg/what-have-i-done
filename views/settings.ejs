@@ -24,8 +24,23 @@
                 <a href="https://github.com/settings/tokens" target="_blank">
                   Create a GitHub token <i class="bi bi-box-arrow-up-right"></i>
                 </a>
-                (No special permissions required, classic token is fine)
+                — Classic token recommended. Enable the <code>repo</code> scope to include private repository activity.
               </div>
+              <% if (githubToken && tokenScopes.length > 0) { %>
+                <div class="mt-2">
+                  <% if (hasRepoScope) { %>
+                    <span class="badge bg-success"><i class="bi bi-lock-fill me-1"></i>Private repo access enabled</span>
+                  <% } else { %>
+                    <span class="badge bg-warning text-dark"><i class="bi bi-unlock me-1"></i>Public repos only</span>
+                    <small class="text-muted ms-2">Add the <code>repo</code> scope to your token to include private repository activity.</small>
+                  <% } %>
+                </div>
+              <% } else if (githubToken) { %>
+                <div class="mt-2">
+                  <span class="badge bg-secondary">Scope info unavailable</span>
+                  <small class="text-muted ms-2">Re-save settings to detect token scopes.</small>
+                </div>
+              <% } %>
             </div>
             
             <div class="mb-3">

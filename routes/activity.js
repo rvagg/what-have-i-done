@@ -41,12 +41,16 @@ router.get('/', async (req, res) => {
   // Get cached usernames for suggestions
   const cachedUsernames = await getCachedUsernames();
   
+  const tokenScopes = req.appConfig?.tokenScopes || [];
+  const hasRepoScope = tokenScopes.includes('repo');
+
   res.render('activity-form', {
     title: 'Generate Activity Report',
     username: req.query.username || '',
     startDate: req.query.startDate || '',
     cachedUsernames: cachedUsernames,
-    excludedOrgs: req.appConfig?.excludedOrgs || []
+    excludedOrgs: req.appConfig?.excludedOrgs || [],
+    hasRepoScope
   });
 });
 
@@ -225,7 +229,7 @@ router.post('/', async (req, res) => {
       `${req.appConfig.githubToken.substring(0, 5)}...${req.appConfig.githubToken.substring(req.appConfig.githubToken.length - 4)}` : 
       'No token');
 
-    const { username, usernames, startDate, enrich, processToken, excludeOrgs } = req.body;
+    const { username, usernames, startDate, endDate, enrich, processToken, excludeOrgs } = req.body;
     const excludeOrgsList = parseExcludeOrgs(excludeOrgs);
 
     // Process usernames (both from direct field and the hidden comma-separated field)
@@ -250,11 +254,22 @@ router.post('/', async (req, res) => {
     
     console.log(`Generating report for ${usernameList.length} user(s):`, usernameList.join(', '));
 
-    // Convert date string to Date object
+    // Convert date strings to Date objects
     const since = new Date(startDate);
     if (isNaN(since.getTime())) {
-      req.flash('error', 'Invalid date format. Please use YYYY-MM-DD');
+      req.flash('error', 'Invalid start date format. Please use YYYY-MM-DD');
       return res.redirect('/activity');
+    }
+
+    let until = null;
+    if (endDate && endDate.trim()) {
+      until = new Date(endDate);
+      if (isNaN(until.getTime())) {
+        req.flash('error', 'Invalid end date format. Please use YYYY-MM-DD');
+        return res.redirect('/activity');
+      }
+      // Set to end of day so the end date is inclusive
+      until.setHours(23, 59, 59, 999);
     }
 
     // For future real-time progress updates, we'd use something like:
@@ -272,15 +287,15 @@ router.post('/', async (req, res) => {
       console.log(`Starting GitHub data fetch for user ${i+1}/${usernameList.length}: ${currentUsername}`);
       
       // Fetch activity data
-      const activity = await fetchUserActivity(currentUsername, since, req.appConfig.githubToken);
+      const activity = await fetchUserActivity(currentUsername, since, req.appConfig.githubToken, until);
       console.log(`Basic activity data fetched for ${currentUsername}`);
-      
+
       // Generate enriched report if requested
       if (enrich === 'true') {
         console.log(`Starting enrichment process for ${currentUsername}`);
         await Promise.all([
-          fetchUserActivity.enrichCommitContributions(activity, since, currentUsername, req.appConfig.githubToken),
-          fetchUserActivity.enrichPullRequestData(activity, since, currentUsername, req.appConfig.githubToken)
+          fetchUserActivity.enrichCommitContributions(activity, since, currentUsername, req.appConfig.githubToken, until),
+          fetchUserActivity.enrichPullRequestData(activity, since, currentUsername, req.appConfig.githubToken, until)
         ]);
         console.log(`Enrichment complete for ${currentUsername}`);
       }
@@ -293,8 +308,8 @@ router.post('/', async (req, res) => {
       }
 
       // Generate reports for this user
-      const htmlReport = generateActivityReport(filteredActivity, since, currentUsername, 'html', enrich === 'true');
-      const plainTextReport = generateActivityReport(filteredActivity, since, currentUsername, 'plain', enrich === 'true');
+      const htmlReport = generateActivityReport(filteredActivity, since, currentUsername, 'html', enrich === 'true', until);
+      const plainTextReport = generateActivityReport(filteredActivity, since, currentUsername, 'plain', enrich === 'true', until);
 
       // Store the user data
       usersData.push({
@@ -350,20 +365,23 @@ router.post('/', async (req, res) => {
     
     // Generate summary if Anthropic key is available
     let summary = null;
+    let summaryCompressionInfo = null;
     if (req.appConfig?.anthropicKey) {
       try {
         // Choose appropriate report text based on single or multi-user
         const reportText = isMultiUser ? consolidatedPlainText : usersData[0].plainTextReport;
         console.log('Generated plain text report for summary, length:', reportText.length);
-        
+
         // Generate summary with appropriate context
-        summary = await generateSummary(
-          reportText, 
+        const result = await generateSummary(
+          reportText,
           req.appConfig.anthropicKey,
           isMultiUser,
           usernameList,
           req.appConfig.claudeModel || 'claude-3-5-sonnet-latest' // Use configured model or default
         );
+        summary = result.html;
+        summaryCompressionInfo = result.compressionInfo;
       } catch (summaryError) {
         console.error('Error generating summary:', summaryError);
         // Don't fail the entire request if summary generation fails
@@ -376,7 +394,9 @@ router.post('/', async (req, res) => {
       usernames: usernameList,
       isMultiUser,
       startDate,
+      endDate: until ? until.toISOString() : null,
       summary,
+      summaryCompressionInfo,
       htmlReport: isMultiUser ? consolidatedHtmlReport : usersData[0].htmlReport,
       plainTextReport: isMultiUser ? consolidatedPlainText : usersData[0].plainTextReport,
       // Include the full activity data for all users to allow regenerating summaries
@@ -408,13 +428,15 @@ router.post('/', async (req, res) => {
     
     // Render the report page
     res.render('activity-report', {
-      title: isMultiUser 
-        ? `GitHub Activity for ${usernameList.length} Users` 
+      title: isMultiUser
+        ? `GitHub Activity for ${usernameList.length} Users`
         : `GitHub Activity for @${usernameList[0]}`,
       usernames: usernameList,
       isMultiUser,
       startDate,
+      endDate: until ? until.toISOString() : null,
       summary,
+      summaryCompressionInfo,
       htmlReport: isMultiUser ? consolidatedHtmlReport : usersData[0].htmlReport,
       hasAnthropicKey: !!req.appConfig?.anthropicKey,
       autoSaved: true

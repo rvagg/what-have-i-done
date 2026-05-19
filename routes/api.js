@@ -115,8 +115,8 @@ router.post('/summary', async (req, res) => {
       return res.status(400).json({ error: 'Activity text is required' });
     }
 
-    const summary = await generateSummary(activityText, req.appConfig.anthropicKey);
-    res.json({ summary });
+    const result = await generateSummary(activityText, req.appConfig.anthropicKey);
+    res.json({ summary: result.html, compressionInfo: result.compressionInfo });
   } catch (error) {
     console.error('API Error:', error);
     res.status(500).json({ error: error.message });

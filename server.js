@@ -73,6 +73,7 @@ app.use(async (req, res, next) => {
     res.locals.hasConfig = !!config;
     res.locals.hasGithubToken = config?.githubToken ? true : false;
     res.locals.hasAnthropicKey = config?.anthropicKey ? true : false;
+    res.locals.hasRepoScope = (config?.tokenScopes || []).includes('repo');
     res.locals.flashMessages = req.flash();
     
     // Store config for route handlers to use
