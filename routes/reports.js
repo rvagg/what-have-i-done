@@ -37,7 +37,9 @@ router.get('/:id', async (req, res) => {
       usernames: reportData.usernames,
       isMultiUser: reportData.isMultiUser,
       startDate: reportData.startDate,
+      endDate: reportData.endDate || null,
       summary: reportData.summary,
+      summaryCompressionInfo: reportData.summaryCompressionInfo || null,
       htmlReport: reportData.htmlReport,
       hasAnthropicKey: !!req.appConfig?.anthropicKey,
       isHistoricalReport: true,
@@ -97,16 +99,17 @@ router.post('/:id/regenerate-summary', async (req, res) => {
       }
       
       // Generate a new summary with the configured model
-      const summary = await generateSummary(
+      const result = await generateSummary(
         plainText,
         req.appConfig.anthropicKey,
         reportData.isMultiUser,
         reportData.usernames,
         req.appConfig.claudeModel || 'claude-3-5-sonnet-latest' // Use configured model or default
       );
-      
+
       // Update the report with the new summary
-      reportData.summary = summary;
+      reportData.summary = result.html;
+      reportData.summaryCompressionInfo = result.compressionInfo;
       reportData.metadata.hasSummary = true;
       
       // Save the updated report

@@ -101,6 +101,9 @@ router.get('/', async (req, res) => {
     availableModels = await getAnthropicModels(config.anthropicKey);
   }
   
+  const tokenScopes = config.tokenScopes || [];
+  const hasRepoScope = tokenScopes.includes('repo');
+
   res.render('settings', {
     title: 'Settings',
     githubToken: config.githubToken || '',
@@ -108,7 +111,9 @@ router.get('/', async (req, res) => {
     claudeModel: config.claudeModel || 'claude-3-5-sonnet-latest',
     excludedOrgs: config.excludedOrgs || [],
     storageLocation: config.storageLocation || 'local', // local or home
-    claudeModels: availableModels || []
+    claudeModels: availableModels || [],
+    tokenScopes,
+    hasRepoScope
   });
 });
 
@@ -169,10 +174,14 @@ router.post('/', async (req, res) => {
             'User-Agent': 'what-have-i-done'
           }
         });
-        
+
         if (!response.ok) {
           throw new Error('Invalid GitHub token');
         }
+
+        // Capture token scopes from response header
+        const scopes = response.headers.get('x-oauth-scopes') || '';
+        config.tokenScopes = scopes.split(',').map(s => s.trim()).filter(Boolean);
       } catch (error) {
         req.flash('error', `GitHub token validation failed: ${error.message}`);
         return res.redirect('/settings');

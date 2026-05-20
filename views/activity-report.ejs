@@ -33,10 +33,13 @@
       </div>
     </div>
     <p class="text-muted">
+      <% const dateRange = locals.endDate
+           ? `${new Date(startDate).toISOString().slice(0,10)} to ${new Date(endDate).toISOString().slice(0,10)}`
+           : `since ${new Date(startDate).toISOString().slice(0,10)}`; %>
       <% if (isMultiUser) { %>
-        Showing activity for <%= usernames.join(', ') %> since <%= new Date(startDate).toLocaleDateString() %>
+        Showing activity for <%= usernames.join(', ') %> <%= dateRange %>
       <% } else { %>
-        Showing activity since <%= new Date(startDate).toLocaleDateString() %>
+        Showing activity <%= dateRange %>
       <% } %>
       <% if (locals.isHistoricalReport) { %>
         <span class="badge bg-secondary ms-2">Saved Report</span>
@@ -62,6 +65,18 @@
         </div>
         <div class="card-body">
           <%- summary %>
+          <% if (locals.summaryCompressionInfo) { %>
+            <div class="alert alert-info mt-3 mb-0">
+              <i class="bi bi-info-circle me-2"></i>
+              <strong>Note:</strong> The following data was excluded from the AI summary to fit within the model's context window:
+              <ul class="mb-0 mt-1">
+                <% summaryCompressionInfo.dropped.forEach(item => { %>
+                  <li><%= item %></li>
+                <% }); %>
+              </ul>
+              <small class="text-muted">The full data is still available in the detailed activity report below.</small>
+            </div>
+          <% } %>
         </div>
       </div>
     </div>
@@ -110,10 +125,32 @@
   </div>
 </div>
 
-<%- contentFor('styles') %>
-<style>
-  /* These styles will be appended to the head section via the layout system */
-</style>
-
-<%- contentFor('scripts') %>
-<!-- Auto-save is now handled server-side, no client-side script needed -->
+<script>
+  function initTablesort() {
+    var s1 = document.createElement('script');
+    s1.src = 'https://cdnjs.cloudflare.com/ajax/libs/tablesort/5.2.1/tablesort.min.js';
+    s1.onload = function() {
+      var s2 = document.createElement('script');
+      s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/tablesort/5.2.1/sorts/tablesort.number.min.js';
+      s2.onload = function() {
+        document.querySelectorAll('.activity-report table').forEach(function(table) {
+          if (!table.querySelector('thead')) return;
+          table.querySelectorAll('thead th').forEach(function(th) {
+            var text = th.textContent.trim();
+            if (text !== 'Repository' && text !== 'Title' && text !== 'PR' && text !== 'Issue' && text !== 'State') {
+              th.setAttribute('data-sort-method', 'number');
+            }
+          });
+          new Tablesort(table);
+        });
+      };
+      document.head.appendChild(s2);
+    };
+    document.head.appendChild(s1);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initTablesort);
+  } else {
+    initTablesort();
+  }
+</script>

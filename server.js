@@ -15,7 +15,6 @@ import expressLayouts from 'express-ejs-layouts';
 import indexRoutes from './routes/index.js';
 import activityRoutes from './routes/activity.js';
 import settingsRoutes from './routes/settings.js';
-import apiRoutes from './routes/api.js';
 import reportsRoutes from './routes/reports.js';
 
 // Setup __dirname equivalent for ES modules
@@ -73,6 +72,7 @@ app.use(async (req, res, next) => {
     res.locals.hasConfig = !!config;
     res.locals.hasGithubToken = config?.githubToken ? true : false;
     res.locals.hasAnthropicKey = config?.anthropicKey ? true : false;
+    res.locals.hasRepoScope = (config?.tokenScopes || []).includes('repo');
     res.locals.flashMessages = req.flash();
     
     // Store config for route handlers to use
@@ -93,7 +93,6 @@ app.use(async (req, res, next) => {
 app.use('/', indexRoutes);
 app.use('/activity', activityRoutes);
 app.use('/settings', settingsRoutes);
-app.use('/api', apiRoutes);
 app.use('/reports', reportsRoutes);
 
 // Error handler

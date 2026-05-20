@@ -118,6 +118,26 @@ footer {
 .activity-report th {
   background-color: #f8f9fa;
   font-weight: bold;
+  cursor: pointer;
+}
+
+.activity-report th[aria-sort]::after {
+  margin-left: 4px;
+  font-size: 0.75em;
+}
+
+.activity-report th[aria-sort=ascending]::after {
+  content: " ▲";
+}
+
+.activity-report th[aria-sort=descending]::after {
+  content: " ▼";
+}
+
+.activity-report tfoot td {
+  background-color: #f8f9fa;
+  font-weight: bold;
+  border-top: 2px solid #ccc;
 }
 
 .activity-report tr:nth-child(even) {

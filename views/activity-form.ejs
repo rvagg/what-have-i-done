@@ -53,11 +53,18 @@
               <div class="form-text">Enter one or more GitHub usernames to generate a report for. For multiple users, a group summary will be created.</div>
             </div>
             
-            <div class="mb-3">
-              <label for="startDate" class="form-label">Start Date</label>
-              <input type="date" class="form-control" id="startDate" name="startDate" 
-                value="<%= startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10) %>" required>
-              <div class="form-text">Select the date from which to start collecting activity.</div>
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <label for="startDate" class="form-label">Start Date</label>
+                <input type="date" class="form-control" id="startDate" name="startDate"
+                  value="<%= startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10) %>" required>
+                <div class="form-text">Start of the reporting period.</div>
+              </div>
+              <div class="col-md-6">
+                <label for="endDate" class="form-label">End Date <span class="text-muted">(optional)</span></label>
+                <input type="date" class="form-control" id="endDate" name="endDate" value="">
+                <div class="form-text">Leave blank to include activity up to now.</div>
+              </div>
             </div>
             
             <div class="mb-3 form-check">
@@ -70,6 +77,18 @@
             </div>
             
             <div class="mb-3">
+              <label for="includeOrgs" class="form-label">Include Only Organizations / Users</label>
+              <input type="text" class="form-control" id="includeOrgs" name="includeOrgs"
+                value="<%= locals.includeOrgs || '' %>"
+                placeholder="e.g., FilOzone, ipfs"
+                autocomplete="off">
+              <div class="form-text">
+                Comma-separated list. When set, only repos from these orgs/users will be included.
+                Leave blank to include all.
+              </div>
+            </div>
+
+            <div class="mb-3">
               <label for="excludeOrgs" class="form-label">Exclude Organizations / Users</label>
               <input type="text" class="form-control" id="excludeOrgs" name="excludeOrgs"
                 value="<%= (locals.excludedOrgs || []).join(', ') %>"
@@ -80,6 +99,27 @@
                 Pre-filled from <a href="/settings">settings</a>.
               </div>
             </div>
+
+            <div class="mb-3">
+              <label for="additionalRepos" class="form-label">Additional Private Repos</label>
+              <input type="text" class="form-control" id="additionalRepos" name="additionalRepos"
+                value="<%= locals.additionalRepos || '' %>" placeholder="e.g., FilOzone/infra, org/other-repo"
+                autocomplete="off">
+              <div class="form-text">
+                Comma-separated list of private repos to query directly for the user's PRs, issues, and commits.
+                Use <code>owner/repo</code> format. Requires a token with <code>repo</code> scope.
+              </div>
+            </div>
+
+            <% if (!hasRepoScope) { %>
+              <div class="alert alert-warning mb-3">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                <strong>Private repositories not included.</strong>
+                To include private repo activity, update your
+                <a href="https://github.com/settings/tokens" target="_blank">GitHub token</a>
+                to include the <code>repo</code> scope, then re-save in <a href="/settings">Settings</a>.
+              </div>
+            <% } %>
 
             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
               <button type="submit" class="btn btn-primary">

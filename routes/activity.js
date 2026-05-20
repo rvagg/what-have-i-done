@@ -1,34 +1,46 @@
 import express from 'express';
-import { fetchUserActivity, generateActivityReport } from '../lib/github-activity.js';
+import { fetchUserActivity, generateActivityReport, fetchAdditionalReposActivity, mergeActivity } from '../lib/github-activity.js';
 import { generateSummary } from '../lib/anthropic.js';
 import { saveReport } from '../lib/reports/manager.js';
 import { addUsernamesToCache, getCachedUsernames } from '../lib/usernames-cache.js';
-import { updateSessionProgress } from '../lib/progress-tracker.js';
 
 const router = express.Router();
 
-// Filter activity data to exclude repos owned by specified orgs/users
-function filterExcludedOrgs(activity, excludeOrgs) {
-  if (!excludeOrgs || excludeOrgs.length === 0) return activity;
+// Filter activity data by org inclusion and/or exclusion lists
+function filterByOrgs(activity, includeOrgs, excludeOrgs) {
+  const hasInclude = includeOrgs && includeOrgs.length > 0;
+  const hasExclude = excludeOrgs && excludeOrgs.length > 0;
+  if (!hasInclude && !hasExclude) return activity;
 
-  const excluded = new Set(excludeOrgs.map(o => o.toLowerCase()));
-  const isExcluded = (repo) => {
+  const included = hasInclude ? new Set(includeOrgs.map(o => o.toLowerCase())) : null;
+  const excluded = hasExclude ? new Set(excludeOrgs.map(o => o.toLowerCase())) : null;
+
+  const isKept = (repo) => {
     const owner = repo.nameWithOwner.split('/')[0].toLowerCase();
-    return excluded.has(owner);
+    if (included && !included.has(owner)) return false;
+    if (excluded && excluded.has(owner)) return false;
+    return true;
   };
 
   return {
-    pullRequests: activity.pullRequests.filter(pr => !isExcluded(pr.repository)),
-    reviews: activity.reviews.filter(r => !isExcluded(r.repository)),
-    issues: activity.issues.filter(i => !isExcluded(i.repository)),
-    commitsByRepo: activity.commitsByRepo.filter(c => !isExcluded(c.repository)),
+    ...activity,
+    pullRequests: activity.pullRequests.filter(pr => isKept(pr.repository)),
+    reviews: activity.reviews.filter(r => isKept(r.repository)),
+    issues: activity.issues.filter(i => isKept(i.repository)),
+    commitsByRepo: activity.commitsByRepo.filter(c => isKept(c.repository)),
   };
 }
 
-// Parse comma-separated org exclusion string into array
-function parseExcludeOrgs(excludeOrgsStr) {
-  if (!excludeOrgsStr || !excludeOrgsStr.trim()) return [];
-  return excludeOrgsStr.split(',').map(s => s.trim()).filter(Boolean);
+// Parse comma-separated string into array
+function parseCommaSeparatedList(str) {
+  if (!str || !str.trim()) return [];
+  return str.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+// Parse comma-separated additional repos string into array of "owner/repo" strings
+function parseAdditionalRepos(str) {
+  if (!str || !str.trim()) return [];
+  return str.split(',').map(s => s.trim()).filter(s => /^[^/]+\/[^/]+$/.test(s));
 }
 
 // Display form to generate activity report
@@ -41,177 +53,20 @@ router.get('/', async (req, res) => {
   // Get cached usernames for suggestions
   const cachedUsernames = await getCachedUsernames();
   
+  const tokenScopes = req.appConfig?.tokenScopes || [];
+  const hasRepoScope = tokenScopes.includes('repo');
+
   res.render('activity-form', {
     title: 'Generate Activity Report',
     username: req.query.username || '',
     startDate: req.query.startDate || '',
+    includeOrgs: req.query.includeOrgs || '',
+    additionalRepos: req.query.additionalRepos || '',
     cachedUsernames: cachedUsernames,
-    excludedOrgs: req.appConfig?.excludedOrgs || []
+    excludedOrgs: req.appConfig?.excludedOrgs || [],
+    hasRepoScope
   });
 });
-
-// Start processing in the background and update progress
-router.post('/process', async (req, res) => {
-  try {
-    console.log('**** PROCESS ENDPOINT CALLED ****');
-    console.log('Request body:', req.body);
-    
-    // This is a non-blocking endpoint - it returns immediately while processing continues
-    const { username, usernames, startDate, enrich, processToken } = req.body;
-    
-    console.log('Process token:', processToken);
-    console.log('Username:', username);
-    console.log('Usernames:', usernames);
-    console.log('Start date:', startDate);
-    
-    if (!processToken) {
-      console.error('Missing process token');
-      return res.status(400).send('Missing process token');
-    }
-    
-    if (!req.appConfig?.githubToken) {
-      console.error('Missing GitHub token');
-      updateSessionProgress(processToken, 'GitHub token is missing or invalid', 'error');
-      return res.status(401).send('GitHub token required');
-    }
-    
-    // Start processing in background - this will not block the response
-    console.log('Starting background processing...');
-    processActivityReport(req.body, req.appConfig, processToken)
-      .catch(error => {
-        console.error('Background processing error:', error);
-        updateSessionProgress(processToken, `Error: ${error.message}`, 'error');
-      });
-    
-    // Return immediately
-    console.log('Returning 202 response');
-    res.status(202).send('Processing started');
-  } catch (error) {
-    console.error('Process error:', error);
-    res.status(500).send('Error starting processing');
-  }
-});
-
-// Process activity data and send progress updates
-async function processActivityReport(formData, appConfig, processToken) {
-  try {
-    const { username, usernames, startDate, enrich } = formData;
-    
-    // Validate inputs
-    if (!startDate) {
-      updateSessionProgress(processToken, 'Error: Start date is required', 'error');
-      throw new Error('Start date is required');
-    }
-    
-    // Process usernames
-    let usernameList = [];
-    if (username && username.trim()) {
-      usernameList.push(username.trim());
-    }
-    if (usernames && usernames.trim()) {
-      const additionalUsernames = usernames.trim().split(',').map(name => name.trim()).filter(Boolean);
-      usernameList = [...new Set([...usernameList, ...additionalUsernames])];
-    }
-    
-    if (usernameList.length === 0) {
-      updateSessionProgress(processToken, 'Error: At least one username is required', 'error');
-      throw new Error('At least one username is required');
-    }
-    
-    const isMultiUser = usernameList.length > 1;
-    
-    // Parse date
-    const since = new Date(startDate);
-    if (isNaN(since.getTime())) {
-      updateSessionProgress(processToken, 'Error: Invalid date format', 'error');
-      throw new Error('Invalid date format');
-    }
-    
-    // Initialize collection for user data
-    const usersData = [];
-    
-    // Progress: starting
-    updateSessionProgress(processToken, 'Connecting to GitHub API...', 'fetch');
-    console.log(`Processing report for ${usernameList.length} users with token ${processToken}`);
-    
-    // Fetch data for all users
-    for (let i = 0; i < usernameList.length; i++) {
-      const currentUsername = usernameList[i];
-      
-      // Update progress - fetching data
-      updateSessionProgress(
-        processToken, 
-        `Fetching data for ${isMultiUser ? `user ${i+1}/${usernameList.length}` : '@' + currentUsername}...`, 
-        'fetch'
-      );
-      console.log(`Fetching GitHub data for ${currentUsername}`);
-      
-      // Fetch activity data
-      const activity = await fetchUserActivity(currentUsername, since, appConfig.githubToken);
-      console.log(`Basic GitHub data fetched for ${currentUsername}`);
-      
-      // Update progress - enriching if needed
-      if (enrich === 'true') {
-        updateSessionProgress(
-          processToken, 
-          `Enriching data for ${isMultiUser ? `user ${i+1}/${usernameList.length}` : '@' + currentUsername}...`, 
-          'enrich'
-        );
-        console.log(`Enriching data for ${currentUsername}`);
-        
-        // Run enrichment processes
-        await Promise.all([
-          fetchUserActivity.enrichCommitContributions(activity, since, currentUsername, appConfig.githubToken),
-          fetchUserActivity.enrichPullRequestData(activity, since, currentUsername, appConfig.githubToken)
-        ]);
-        console.log(`Data enrichment complete for ${currentUsername}`);
-      }
-      
-      // Update progress - generating report
-      updateSessionProgress(
-        processToken, 
-        `Generating report for ${isMultiUser ? `user ${i+1}/${usernameList.length}` : '@' + currentUsername}...`, 
-        'report'
-      );
-      console.log(`Generating reports for ${currentUsername}`);
-      
-      // Generate reports for this user
-      const htmlReport = generateActivityReport(activity, since, currentUsername, 'html', enrich === 'true');
-      const plainTextReport = generateActivityReport(activity, since, currentUsername, 'plain', enrich === 'true');
-      console.log(`Reports generated for ${currentUsername}`);
-      
-      // Store the user data
-      usersData.push({
-        username: currentUsername,
-        activity,
-        htmlReport,
-        plainTextReport
-      });
-    }
-    
-    // Multi-user consolidation if needed
-    if (isMultiUser) {
-      updateSessionProgress(processToken, 'Consolidating multi-user reports...', 'report');
-      console.log('Consolidating multi-user data');
-    }
-    
-    // AI summary if possible
-    if (appConfig?.anthropicKey) {
-      updateSessionProgress(processToken, 'Generating AI summary...', 'ai');
-      console.log('AI summary would be generated by the main handler');
-    }
-    
-    // Complete
-    updateSessionProgress(processToken, 'Processing complete! Redirecting...', 'complete');
-    console.log('Background processing complete for token:', processToken);
-    
-    return usersData;
-  } catch (error) {
-    console.error(`Process activity error for token ${processToken}:`, error);
-    updateSessionProgress(processToken, `Error: ${error.message}`, 'error');
-    throw error;
-  }
-}
 
 // Generate and display activity report
 router.post('/', async (req, res) => {
@@ -225,8 +80,10 @@ router.post('/', async (req, res) => {
       `${req.appConfig.githubToken.substring(0, 5)}...${req.appConfig.githubToken.substring(req.appConfig.githubToken.length - 4)}` : 
       'No token');
 
-    const { username, usernames, startDate, enrich, processToken, excludeOrgs } = req.body;
-    const excludeOrgsList = parseExcludeOrgs(excludeOrgs);
+    const { username, usernames, startDate, endDate, enrich, processToken, includeOrgs, excludeOrgs, additionalRepos } = req.body;
+    const includeOrgsList = parseCommaSeparatedList(includeOrgs);
+    const excludeOrgsList = parseCommaSeparatedList(excludeOrgs);
+    const additionalReposList = parseAdditionalRepos(additionalRepos);
 
     // Process usernames (both from direct field and the hidden comma-separated field)
     let usernameList = [];
@@ -250,11 +107,22 @@ router.post('/', async (req, res) => {
     
     console.log(`Generating report for ${usernameList.length} user(s):`, usernameList.join(', '));
 
-    // Convert date string to Date object
+    // Convert date strings to Date objects
     const since = new Date(startDate);
     if (isNaN(since.getTime())) {
-      req.flash('error', 'Invalid date format. Please use YYYY-MM-DD');
+      req.flash('error', 'Invalid start date format. Please use YYYY-MM-DD');
       return res.redirect('/activity');
+    }
+
+    let until = null;
+    if (endDate && endDate.trim()) {
+      until = new Date(endDate);
+      if (isNaN(until.getTime())) {
+        req.flash('error', 'Invalid end date format. Please use YYYY-MM-DD');
+        return res.redirect('/activity');
+      }
+      // Set to end of day so the end date is inclusive
+      until.setHours(23, 59, 59, 999);
     }
 
     // For future real-time progress updates, we'd use something like:
@@ -272,29 +140,42 @@ router.post('/', async (req, res) => {
       console.log(`Starting GitHub data fetch for user ${i+1}/${usernameList.length}: ${currentUsername}`);
       
       // Fetch activity data
-      const activity = await fetchUserActivity(currentUsername, since, req.appConfig.githubToken);
+      const activity = await fetchUserActivity(currentUsername, since, req.appConfig.githubToken, until);
       console.log(`Basic activity data fetched for ${currentUsername}`);
-      
-      // Generate enriched report if requested
-      if (enrich === 'true') {
-        console.log(`Starting enrichment process for ${currentUsername}`);
-        await Promise.all([
-          fetchUserActivity.enrichCommitContributions(activity, since, currentUsername, req.appConfig.githubToken),
-          fetchUserActivity.enrichPullRequestData(activity, since, currentUsername, req.appConfig.githubToken)
-        ]);
-        console.log(`Enrichment complete for ${currentUsername}`);
-      }
-      
-      // Apply org/user exclusion filter
-      const filteredActivity = filterExcludedOrgs(activity, excludeOrgsList);
 
+      // Fetch and merge activity from additional private repos
+      if (additionalReposList.length > 0) {
+        console.log(`Fetching additional repos for ${currentUsername}: ${additionalReposList.join(', ')}`);
+        const additionalActivity = await fetchAdditionalReposActivity(
+          additionalReposList, currentUsername, since, req.appConfig.githubToken, until
+        );
+        mergeActivity(activity, additionalActivity);
+        console.log(`Merged additional repo activity for ${currentUsername}`);
+      }
+
+      // Apply org/user filter BEFORE enrichment to avoid wasted API calls
+      const filteredActivity = filterByOrgs(activity, includeOrgsList, excludeOrgsList);
+
+      if (includeOrgsList.length > 0) {
+        console.log(`Filtered to only orgs: ${includeOrgsList.join(', ')} for ${currentUsername}`);
+      }
       if (excludeOrgsList.length > 0) {
         console.log(`Filtered out repos from: ${excludeOrgsList.join(', ')} for ${currentUsername}`);
       }
 
+      // Generate enriched report if requested (runs on filtered data only)
+      if (enrich === 'true') {
+        console.log(`Starting enrichment process for ${currentUsername}`);
+        await Promise.all([
+          fetchUserActivity.enrichCommitContributions(filteredActivity, since, currentUsername, req.appConfig.githubToken, until),
+          fetchUserActivity.enrichPullRequestData(filteredActivity, since, currentUsername, req.appConfig.githubToken, until)
+        ]);
+        console.log(`Enrichment complete for ${currentUsername}`);
+      }
+
       // Generate reports for this user
-      const htmlReport = generateActivityReport(filteredActivity, since, currentUsername, 'html', enrich === 'true');
-      const plainTextReport = generateActivityReport(filteredActivity, since, currentUsername, 'plain', enrich === 'true');
+      const htmlReport = generateActivityReport(filteredActivity, since, currentUsername, 'html', enrich === 'true', until, additionalReposList);
+      const plainTextReport = generateActivityReport(filteredActivity, since, currentUsername, 'plain', enrich === 'true', until, additionalReposList);
 
       // Store the user data
       usersData.push({
@@ -350,20 +231,23 @@ router.post('/', async (req, res) => {
     
     // Generate summary if Anthropic key is available
     let summary = null;
+    let summaryCompressionInfo = null;
     if (req.appConfig?.anthropicKey) {
       try {
         // Choose appropriate report text based on single or multi-user
         const reportText = isMultiUser ? consolidatedPlainText : usersData[0].plainTextReport;
         console.log('Generated plain text report for summary, length:', reportText.length);
-        
+
         // Generate summary with appropriate context
-        summary = await generateSummary(
-          reportText, 
+        const result = await generateSummary(
+          reportText,
           req.appConfig.anthropicKey,
           isMultiUser,
           usernameList,
           req.appConfig.claudeModel || 'claude-3-5-sonnet-latest' // Use configured model or default
         );
+        summary = result.html;
+        summaryCompressionInfo = result.compressionInfo;
       } catch (summaryError) {
         console.error('Error generating summary:', summaryError);
         // Don't fail the entire request if summary generation fails
@@ -376,7 +260,9 @@ router.post('/', async (req, res) => {
       usernames: usernameList,
       isMultiUser,
       startDate,
+      endDate: until ? until.toISOString() : null,
       summary,
+      summaryCompressionInfo,
       htmlReport: isMultiUser ? consolidatedHtmlReport : usersData[0].htmlReport,
       plainTextReport: isMultiUser ? consolidatedPlainText : usersData[0].plainTextReport,
       // Include the full activity data for all users to allow regenerating summaries
@@ -384,7 +270,9 @@ router.post('/', async (req, res) => {
         username: userData.username,
         activity: userData.activity,
       })),
+      includedOrgs: includeOrgsList,
       excludedOrgs: excludeOrgsList,
+      additionalRepos: additionalReposList,
       generatedAt: new Date().toISOString(),
       hasSummary: !!summary
     };
@@ -408,13 +296,15 @@ router.post('/', async (req, res) => {
     
     // Render the report page
     res.render('activity-report', {
-      title: isMultiUser 
-        ? `GitHub Activity for ${usernameList.length} Users` 
+      title: isMultiUser
+        ? `GitHub Activity for ${usernameList.length} Users`
         : `GitHub Activity for @${usernameList[0]}`,
       usernames: usernameList,
       isMultiUser,
       startDate,
+      endDate: until ? until.toISOString() : null,
       summary,
+      summaryCompressionInfo,
       htmlReport: isMultiUser ? consolidatedHtmlReport : usersData[0].htmlReport,
       hasAnthropicKey: !!req.appConfig?.anthropicKey,
       autoSaved: true
