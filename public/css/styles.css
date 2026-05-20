@@ -119,7 +119,6 @@ footer {
   background-color: #f8f9fa;
   font-weight: bold;
   cursor: pointer;
-  user-select: none;
 }
 
 .activity-report th[aria-sort]::after {
